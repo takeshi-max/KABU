@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🇯🇵 日本株 AIアナリスト</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { max-width: 500px; width: 100%; display: flex; flex-direction: column; gap: 15px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 16px; border: 1px solid #334155; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 14px; }
+    button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; }
+    button:hover { background: #0369a1; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    .result-box { white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #e2e8f0; }
+    .loading { color: #38bdf8; font-weight: bold; text-align: center; display: none; }
+    .disclaimer { font-size: 10px; color: #94a3b8; margin-top: 10px; border-top: 1px dashed #334155; padding-top: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <h2>🇯🇵 日本株 AIアナリスト</h2>
+    <input type="password" id="apiKey" placeholder="Gemini API Keyを入力" />
+    <input type="text" id="searchInput" placeholder="銘柄コード(例: 7203) または 企業名(例: トヨタ)" />
+    <button id="searchBtn" onclick="analyzeStock()">銘柄を分析する</button>
+  </div>
+
+  <div class="card">
+    <div id="loading" class="loading">🔍 銘柄情報を検索中...</div>
+    <div id="result" class="result-box">企業名または銘柄コードを入力して「分析する」を押してください。</div>
+    <div class="disclaimer">※本アプリの提供情報はAIによる自動分析であり、投資勧誘を目的としたものではありません。投資の最終決定はご自身の判断で行ってください。</div>
+  </div>
+</div>
+
+<script>
+  // APIキーの自動保存
+  const apiKeyInput = document.getElementById('apiKey');
+  apiKeyInput.value = localStorage.getItem('stock_gemini_key') || '';
+  apiKeyInput.addEventListener('change', () => localStorage.setItem('stock_gemini_key', apiKeyInput.value.trim()));
+
+  async function analyzeStock() {
+    const apiKey = apiKeyInput.value.trim();
+    const query = document.getElementById('searchInput').value.trim();
+    const resultBox = document.getElementById('result');
+    const loading = document.getElementById('loading');
+    const searchBtn = document.getElementById('searchBtn');
+
+    if (!apiKey) return alert("Gemini APIキーを入力してください！");
+    if (!query) return alert("銘柄コードまたは企業名を入力してください！");
+
+    loading.style.display = 'block';
+    resultBox.innerHTML = '';
+    searchBtn.disabled = true;
+
+    // AIに対するプロンプト（指示文）の作成
+    const prompt = `あなたは優秀な日本株リサーチアナリストです。
+入力された検索ワード「${query}」から該当する日本企業（銘柄コードおよび正式名称）を特定し、その企業の最新動向・財務傾向・投資分析レポートを作成してください。
+
+必ず以下の構成で出力してください（Markdown形式）：
+
+### ■ 対象銘柄
+【銘柄コード】正式な企業名称
+
+### 1. 企業の概要と特徴
+（どのような事業を展開しているか2〜3行で）
+
+### 2. 直近の業績・ポジティブ要素
+* 
+* 
+
+### 3. 注意すべきリスク・懸念点
+* 
+* 
+
+### 4. 今後の注目シナリオ（強気・弱気）
+* **強気シナリオ**: 
+* **弱気シナリオ**: 
+
+---
+※具体的な株価の売買指示（買え・売れ等）は絶対に含めないでください。`;
+
+    // モデル切り替えフォールバック
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    let success = false;
+
+    for (const model of models) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (text) {
+          resultBox.innerText = text;
+          success = true;
+          break;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loading.style.display = 'none';
+    searchBtn.disabled = false;
+
+    if (!success) {
+      resultBox.innerText = "エラー: 銘柄情報の取得に失敗しました。APIキーまたはネットワーク接続を確認してください。";
+    }
+  }
+</script>
+
+</body>
+</html>
