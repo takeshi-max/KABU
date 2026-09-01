@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🇯🇵 日本株 AIアナリスト</title>
+  <title>🌐 統合資産 AIアナリスト</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: sans-serif; background: #0f172a; color: white; margin: 0; padding: 20px; display: flex; justify-content: center; }
@@ -16,32 +16,35 @@
     .result-box { white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: #e2e8f0; }
     .loading { color: #38bdf8; font-weight: bold; text-align: center; display: none; }
     .disclaimer { font-size: 10px; color: #94a3b8; margin-top: 10px; border-top: 1px dashed #334155; padding-top: 8px; }
+    .example-tag { font-size: 11px; color: #94a3b8; margin-bottom: 8px; }
   </style>
 </head>
 <body>
 
 <div class="container">
   <div class="card">
-    <h2>🇯🇵 日本株 AIアナリスト</h2>
+    <h2>🌐 統合資産 AIアナリスト</h2>
     <input type="password" id="apiKey" placeholder="Gemini API Keyを入力" />
-    <input type="text" id="searchInput" placeholder="銘柄コード(例: 7203) または 企業名(例: トヨタ)" />
-    <button id="searchBtn" onclick="analyzeStock()">銘柄を分析する</button>
+    <input type="text" id="searchInput" placeholder="銘柄コード、企業名、ファンド名を入力" />
+    <div class="example-tag">
+      入力例: 7203 / トヨタ / AAPL / アップル / オルカン / S&P500
+    </div>
+    <button id="searchBtn" onclick="analyzeAsset()"> AIで多角分析する</button>
   </div>
 
   <div class="card">
-    <div id="loading" class="loading">🔍 銘柄情報を検索中...</div>
-    <div id="result" class="result-box">企業名または銘柄コードを入力して「分析する」を押してください。</div>
+    <div id="loading" class="loading">🔍 銘柄・ファンド情報を検索＆分析中...</div>
+    <div id="result" class="result-box">日本株・米国株・投資信託を入力して「分析する」を押してください。</div>
     <div class="disclaimer">※本アプリの提供情報はAIによる自動分析であり、投資勧誘を目的としたものではありません。投資の最終決定はご自身の判断で行ってください。</div>
   </div>
 </div>
 
 <script>
-  // APIキーの自動保存
   const apiKeyInput = document.getElementById('apiKey');
-  apiKeyInput.value = localStorage.getItem('stock_gemini_key') || '';
-  apiKeyInput.addEventListener('change', () => localStorage.setItem('stock_gemini_key', apiKeyInput.value.trim()));
+  apiKeyInput.value = localStorage.getItem('multi_asset_gemini_key') || '';
+  apiKeyInput.addEventListener('change', () => localStorage.setItem('multi_asset_gemini_key', apiKeyInput.value.trim()));
 
-  async function analyzeStock() {
+  async function analyzeAsset() {
     const apiKey = apiKeyInput.value.trim();
     const query = document.getElementById('searchInput').value.trim();
     const resultBox = document.getElementById('result');
@@ -49,40 +52,41 @@
     const searchBtn = document.getElementById('searchBtn');
 
     if (!apiKey) return alert("Gemini APIキーを入力してください！");
-    if (!query) return alert("銘柄コードまたは企業名を入力してください！");
+    if (!query) return alert("検索キーワードを入力してください！");
 
     loading.style.display = 'block';
     resultBox.innerHTML = '';
     searchBtn.disabled = true;
 
-    // AIに対するプロンプト（指示文）の作成
-    const prompt = `あなたは優秀な日本株リサーチアナリストです。
-入力された検索ワード「${query}」から該当する日本企業（銘柄コードおよび正式名称）を特定し、その企業の最新動向・財務傾向・投資分析レポートを作成してください。
+    // AIに種類判別と分析を同時に行わせるプロンプト
+    const prompt = `あなたは優秀な金融アナリストです。
+入力された検索ワード「${query}」について、以下の手順で処理・出力してください。
 
-必ず以下の構成で出力してください（Markdown形式）：
-
-### ■ 対象銘柄
-【銘柄コード】正式な企業名称
-
-### 1. 企業の概要と特徴
-（どのような事業を展開しているか2〜3行で）
-
-### 2. 直近の業績・ポジティブ要素
-* 
-* 
-
-### 3. 注意すべきリスク・懸念点
-* 
-* 
-
-### 4. 今後の注目シナリオ（強気・弱気）
-* **強気シナリオ**: 
-* **弱気シナリオ**: 
+【ステップ1】検索ワードが「日本株」「米国株」「投資信託」のどれに該当するか特定してください。
+【ステップ2】種類に応じて以下の構成でレポートを作成してください（Markdown形式）。
 
 ---
-※具体的な株価の売買指示（買え・売れ等）は絶対に含めないでください。`;
+### ■ 分析対象
+【分類】（日本株 / 米国株 / 投資信託のいずれか）
+【正式名称】（コードまたはティッカーシンボル）
 
-    // モデル切り替えフォールバック
+### 1. 概要と基本特徴
+（特徴や投資対象、事業内容を2〜3行で）
+
+### 2. 主なポジティブ要素・強み
+* 
+* 
+
+### 3. 主なリスク・懸念点
+* 
+* 
+
+### 4. 投資検討のチェックポイント
+* 
+
+---
+※具体的な買え/売れといった投資助言は絶対に含めないでください。`;
+
     const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     let success = false;
 
@@ -113,7 +117,7 @@
     searchBtn.disabled = false;
 
     if (!success) {
-      resultBox.innerText = "エラー: 銘柄情報の取得に失敗しました。APIキーまたはネットワーク接続を確認してください。";
+      resultBox.innerText = "エラー: 情報の取得に失敗しました。APIキーまたはネットワーク接続を確認してください。";
     }
   }
 </script>
