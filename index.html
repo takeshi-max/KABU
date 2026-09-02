@@ -17,11 +17,9 @@
     input:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,0.2); }
     
     button { width: 100%; padding: 14px; background: #0284c7; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; transition: 0.2s; box-shadow: 0 4px 0 #0369a1; }
-    button:hover { background: #0369a1; }
     button:active { transform: translateY(2px); box-shadow: none; }
     button:disabled { background: #475569; box-shadow: none; cursor: not-allowed; opacity: 0.7; }
     
-    /* 結果表示エリアの装飾 */
     .result-box { white-space: pre-wrap; font-size: 14px; line-height: 1.7; color: #e2e8f0; animation: fadeIn 0.5s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     
@@ -55,7 +53,7 @@
   </div>
 
   <div class="card" id="resultCard" style="display:none;">
-    <div id="loading" class="loading">🔍 財務データ・市場動向を分析中...</div>
+    <div id="loading" class="loading">🔍 最新データを日本語で分析中...</div>
     <div id="result" class="result-box"></div>
     <div class="disclaimer">
       【免責事項】本アプリはAIによる情報提供を目的としており、投資勧誘ではありません。情報の正確性、完全性を保証するものではなく、投資による損失について作者は一切の責任を負いません。最終的な投資判断はご自身で行ってください。
@@ -64,11 +62,11 @@
 </div>
 
 <script>
-  // APIキーの読み込みと保存
   const apiKeyInput = document.getElementById('apiKey');
-  apiKeyInput.value = localStorage.getItem('multi_asset_gemini_key') || '';
+  // 以前のアプリとキーを混同しないようユニークな名前で保存
+  apiKeyInput.value = localStorage.getItem('asset_analyst_gemini_key') || '';
   apiKeyInput.addEventListener('change', () => {
-    localStorage.setItem('multi_asset_gemini_key', apiKeyInput.value.trim());
+    localStorage.setItem('asset_analyst_gemini_key', apiKeyInput.value.trim());
   });
 
   async function startAnalysis() {
@@ -83,46 +81,57 @@
     if (!apiKey) return alert("Gemini APIキーを入力してください！");
     if (!query) return alert("銘柄名やコードを入力してください！");
 
-    // UIリセット
     searchBtn.disabled = true;
     resultCard.style.display = 'block';
     loading.style.display = 'block';
     resultBox.innerText = '';
-    statusMsg.textContent = "最適なAIモデルを探索中...";
+    statusMsg.textContent = "AIモデルを確認中...";
 
-    const prompt = `あなたはプロの金融アナリストです。現在の市場環境を前提に、以下の入力内容についてプロ視点のレポートを作成してください。
+    // プロンプトの改良（日本語出力を強力に強制）
+    const prompt = `あなたはプロの金融アナリストです。以下の入力について、必ず【全て日本語】で詳細なレポートを作成してください。
+
 入力: 「${query}」
 
-【構成】
-1. 分析対象の特定（日本株/米国株/投資信託の分類と正式名称）
-2. 概要と基本特徴（事業内容や運用目的を簡潔に）
-3. 主な強み・ポジティブ要素（競合優位性、成長性など）
-4. リスク・懸念点（地政学リスク、財務懸念など）
-5. 投資検討のチェックポイント（注視すべき指標など）
+【レポート構成】
+1. 分析対象の特定
+   - 日本株 / 米国株 / 投資信託 のどれに該当するか
+   - 正式名称、コード、またはティッカー
 
-※投資助言（買い・売りの推奨）は絶対に含めないでください。客観的な分析に徹してください。`;
+2. 概要と基本特徴
+   - 事業内容や運用の仕組みを専門用語を噛み砕いて日本語で解説
+
+3. 主な強み・ポジティブ要素
+   - 競合優位性や今後の成長期待などを日本語で箇条書き
+
+4. 主なリスク・懸念点
+   - 市場リスクや財務上の注意点を日本語で箇条書き
+
+5. 投資検討のチェックポイント
+   - 今後どの指標やニュースを注視すべきか
+
+※回答はすべて日本語で行うこと。英語で出力された場合はエラーとみなします。投資助言（買い・売りの推奨）は含めないでください。`;
 
     try {
-      // 1. 利用可能なモデルを取得
+      // 1. 利用可能なモデルリストを取得
       const modelsResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       const modelsData = await modelsResponse.json();
       
       if (!modelsResponse.ok) throw new Error(modelsData.error?.message || "API接続エラー");
 
-      // 使えるモデル（generateContentに対応したもの）を抽出
+      // generateContentに対応したモデルを抽出
       let availableModels = modelsData.models
         .filter(m => m.supportedGenerationMethods.includes("generateContent"))
-        .sort((a, b) => b.name.localeCompare(a.name)); // 新しい順
+        .sort((a, b) => b.name.localeCompare(a.name));
 
       // 記憶している成功モデルを最優先にする
-      const lastModel = localStorage.getItem('last_asset_model');
+      const lastModel = localStorage.getItem('last_asset_success_model');
       if (lastModel && availableModels.some(m => m.name === lastModel)) {
         availableModels = [ {name: lastModel}, ...availableModels.filter(m => m.name !== lastModel) ];
       }
 
       let success = false;
 
-      // 2. 成功するまでモデルを順番に試す
+      // 2. 成功するまでしらみつぶしに試行
       for (const modelObj of availableModels) {
         const modelName = modelObj.name;
         statusMsg.textContent = `試行中: ${modelName.split('/').pop()}...`;
@@ -140,20 +149,18 @@
 
             if (text) {
               resultBox.innerText = text;
-              localStorage.setItem('last_asset_model', modelName); // 成功モデルを保存
+              localStorage.setItem('last_asset_success_model', modelName); // 成功モデルを記憶
               success = true;
               break;
             }
           }
         } catch (e) {
-          console.warn(`${modelName} failed`, e);
+          console.warn(`${modelName} でエラー:`, e);
           continue;
         }
       }
 
-      if (!success) {
-        resultBox.innerText = "すべてのモデルで試行しましたが、情報の取得に失敗しました。APIキーの制限や有効期限を確認してください。";
-      }
+      if (!success) throw new Error("利用可能なAIモデルが見つからなかったか、無料枠の制限です。");
 
     } catch (err) {
       resultBox.innerText = "エラーが発生しました:\n" + err.message;
